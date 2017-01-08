@@ -148,6 +148,8 @@ enum hp3500_option
   OPT_CONTRAST,
   OPT_GAMMA,
 
+  OPT_TEST,
+
   NUM_OPTIONS
 };
 
@@ -192,6 +194,8 @@ struct hp3500_data
   int contrast;
 
   double gamma;
+
+  int test;
 
   SANE_Option_Descriptor opt[NUM_OPTIONS];
   SANE_Device sane;
@@ -390,6 +394,7 @@ sane_open (SANE_String_Const name, SANE_Handle * handle)
   scanner->brightness = 128;
   scanner->contrast = 64;
   scanner->gamma = 2.2;
+  scanner->test = 42;
   calculateDerivedValues (scanner);
 
   return SANE_STATUS_GOOD;
@@ -551,6 +556,10 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	case OPT_BRIGHTNESS:
 	  *(SANE_Word *) val = scanner->brightness;
 	  return SANE_STATUS_GOOD;
+
+  case OPT_TEST:
+    *(SANE_Word *) val = scanner->test;
+    return SANE_STATUS_GOOD;
 	}
     }
   else if (action == SANE_ACTION_SET_VALUE)
@@ -662,8 +671,12 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	  scanner->contrast = *(SANE_Word *) val;
 	  return SANE_STATUS_GOOD;
 
-        case OPT_GAMMA:
-          scanner->gamma = SANE_UNFIX(*(SANE_Word *) val);
+  case OPT_GAMMA:
+    scanner->gamma = SANE_UNFIX(*(SANE_Word *) val);
+    return SANE_STATUS_GOOD;
+
+        case OPT_TEST:
+          scanner->test = *(SANE_Word *) val;
           return SANE_STATUS_GOOD;
 	}			/* switch */
     }				/* else */
@@ -1107,6 +1120,16 @@ init_options (struct hp3500_data *scanner)
   opt->name = SANE_NAME_ANALOG_GAMMA;
   opt->title = SANE_TITLE_ANALOG_GAMMA;
   opt->desc = SANE_DESC_ANALOG_GAMMA;
+  opt->type = SANE_TYPE_FIXED;
+  opt->unit = SANE_UNIT_NONE;
+  opt->constraint_type = SANE_CONSTRAINT_RANGE;
+  opt->constraint.range = &range_gamma;
+  opt->cap = SANE_CAP_SOFT_SELECT | SANE_CAP_SOFT_DETECT;
+
+  opt = scanner->opt + OPT_TEST;
+  opt->name = "test";
+  opt->title = SANE_I18N("This is test option");
+  opt->desc = SANE_I18N("Test option description");
   opt->type = SANE_TYPE_FIXED;
   opt->unit = SANE_UNIT_NONE;
   opt->constraint_type = SANE_CONSTRAINT_RANGE;
