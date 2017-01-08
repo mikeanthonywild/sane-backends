@@ -144,11 +144,10 @@ enum hp3500_option
   OPT_BR_Y,
   OPT_MODE_GROUP,
   OPT_MODE,
+  OPT_SOURCE,
   OPT_BRIGHTNESS,
   OPT_CONTRAST,
   OPT_GAMMA,
-
-  OPT_TEST,
 
   NUM_OPTIONS
 };
@@ -173,6 +172,7 @@ struct hp3500_data
 
   int resolution;
   int mode;
+  int source;
 
   time_t last_scan;
 
@@ -194,8 +194,6 @@ struct hp3500_data
   int contrast;
 
   double gamma;
-
-  int test;
 
   SANE_Option_Descriptor opt[NUM_OPTIONS];
   SANE_Device sane;
@@ -236,6 +234,8 @@ static const SANE_Range range_gamma =
 #define HP3500_TOTAL_SCANS 3
 
 static char const *scan_mode_list[HP3500_TOTAL_SCANS + 1] = { 0 };
+static char const *scan_source_list[] = 
+  { SANE_I18N ("Flatbed"), SANE_I18N ("Transparency Adapter"), 0 };
 
 static SANE_Status attachScanner (const char *name);
 static SANE_Status init_options (struct hp3500_data *scanner);
@@ -391,10 +391,10 @@ sane_open (SANE_String_Const name, SANE_Handle * handle)
   scanner->request_mm.right = SCANNER_UNIT_TO_FIXED_MM (10200);
   scanner->request_mm.bottom = SCANNER_UNIT_TO_FIXED_MM (14100);
   scanner->mode = 0;
+  scanner->source = 0;
   scanner->brightness = 128;
   scanner->contrast = 64;
   scanner->gamma = 2.2;
-  scanner->test = 42;
   calculateDerivedValues (scanner);
 
   return SANE_STATUS_GOOD;
@@ -545,6 +545,10 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	  strcpy ((SANE_Char *) val, scan_mode_list[scanner->mode]);
 	  return SANE_STATUS_GOOD;
 
+  case OPT_SOURCE:
+    strcpy ((SANE_Char *) val, scan_source_list[scanner->source]);
+    return SANE_STATUS_GOOD;
+
 	case OPT_CONTRAST:
 	  *(SANE_Word *) val = scanner->contrast;
 	  return SANE_STATUS_GOOD;
@@ -556,10 +560,6 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	case OPT_BRIGHTNESS:
 	  *(SANE_Word *) val = scanner->brightness;
 	  return SANE_STATUS_GOOD;
-
-  case OPT_TEST:
-    *(SANE_Word *) val = scanner->test;
-    return SANE_STATUS_GOOD;
 	}
     }
   else if (action == SANE_ACTION_SET_VALUE)
@@ -663,6 +663,18 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	  /* Impossible */
 	  return SANE_STATUS_INVAL;
 
+  case OPT_SOURCE:
+    for (i=0; scan_source_list[i]; ++i) {
+      if (strcmp((SANE_Char const *) val, scan_source_list[i]) == 0) {
+        DBG(10, "Setting scan source to %s (request: %s)\n",
+            scan_source_list[i], (SANE_Char const *) val);
+        scanner->source = i;
+        return SANE_STATUS_GOOD;
+      }
+    }
+    /* Impossible */
+    return SANE_STATUS_INVAL;
+
 	case OPT_BRIGHTNESS:
 	  scanner->brightness = *(SANE_Word *) val;
 	  return SANE_STATUS_GOOD;
@@ -671,12 +683,8 @@ sane_control_option (SANE_Handle handle, SANE_Int option,
 	  scanner->contrast = *(SANE_Word *) val;
 	  return SANE_STATUS_GOOD;
 
-  case OPT_GAMMA:
-    scanner->gamma = SANE_UNFIX(*(SANE_Word *) val);
-    return SANE_STATUS_GOOD;
-
-        case OPT_TEST:
-          scanner->test = *(SANE_Word *) val;
+        case OPT_GAMMA:
+          scanner->gamma = SANE_UNFIX(*(SANE_Word *) val);
           return SANE_STATUS_GOOD;
 	}			/* switch */
     }				/* else */
@@ -1098,6 +1106,16 @@ init_options (struct hp3500_data *scanner)
   opt->constraint.string_list = (SANE_String_Const *) scan_mode_list;
   opt->cap = SANE_CAP_SOFT_SELECT | SANE_CAP_SOFT_DETECT;
 
+  opt = scanner->opt + OPT_SOURCE;
+  opt->name = SANE_NAME_SCAN_SOURCE;
+  opt->title = SANE_TITLE_SCAN_SOURCE;
+  opt->desc = SANE_DESC_SCAN_SOURCE;
+  opt->type = SANE_TYPE_STRING;
+  opt->size = max_string_size(scan_source_list);
+  opt->constraint_type = SANE_CONSTRAINT_STRING_LIST;
+  opt->constraint.string_list = (SANE_String_Const *) scan_source_list;
+  opt->cap = SANE_CAP_SOFT_SELECT | SANE_CAP_SOFT_DETECT;
+
   opt = scanner->opt + OPT_BRIGHTNESS;
   opt->name = SANE_NAME_BRIGHTNESS;
   opt->title = SANE_TITLE_BRIGHTNESS;
@@ -1120,16 +1138,6 @@ init_options (struct hp3500_data *scanner)
   opt->name = SANE_NAME_ANALOG_GAMMA;
   opt->title = SANE_TITLE_ANALOG_GAMMA;
   opt->desc = SANE_DESC_ANALOG_GAMMA;
-  opt->type = SANE_TYPE_FIXED;
-  opt->unit = SANE_UNIT_NONE;
-  opt->constraint_type = SANE_CONSTRAINT_RANGE;
-  opt->constraint.range = &range_gamma;
-  opt->cap = SANE_CAP_SOFT_SELECT | SANE_CAP_SOFT_DETECT;
-
-  opt = scanner->opt + OPT_TEST;
-  opt->name = "test";
-  opt->title = SANE_I18N("This is test option");
-  opt->desc = SANE_I18N("Test option description");
   opt->type = SANE_TYPE_FIXED;
   opt->unit = SANE_UNIT_NONE;
   opt->constraint_type = SANE_CONSTRAINT_RANGE;
